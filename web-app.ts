@@ -998,3 +998,5 @@ WebView.onEvent("theme_changed", onThemeChanged);
 WebView.onEvent("viewport_changed", onViewportChanged);
 WebView.postEvent("web_app_request_theme");
 WebView.postEvent("web_app_request_viewport");
+
+export default WebApp;
