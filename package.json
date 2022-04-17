@@ -4,6 +4,7 @@
   "description": "Building blocks for Telegram Web Apps",
   "main": "web-app.js",
   "scripts": {
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
