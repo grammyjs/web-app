@@ -1,14 +1,22 @@
-type TODOEventData = any; // TODO: define
+export interface EventData {
+  theme_params?: ThemeParams;
+  height?: number | false;
+  isStateStable?: boolean;
+  is_expanded?: boolean;
+}
 
 type Callback = (err?: unknown) => void;
-type EventCallback = (eventType: string, eventData: string) => void;
+type EventCallback = (eventType: string, eventData: EventData) => void;
 type EventCallbackConsumer = (callback: EventCallback) => void;
 type Params = Record<string, string | null>;
+type Color = string | false;
 
 declare global {
   interface Window {
     Telegram: Telegram;
-    TelegramWebviewProxy: { postEvent: EventCallback };
+    TelegramWebviewProxy: {
+      postEvent(eventType: string, eventData: string): void;
+    };
     TelegramGameProxy_receiveEvent: WebView["receiveEvent"];
     TelegramGameProxy: { receiveEvent: WebView["receiveEvent"] };
   }
@@ -31,8 +39,12 @@ export interface WebView {
   initParams: Params;
   onEvent(eventType: string, callback: EventCallback): void;
   offEvent(eventType: string, callback: EventCallback): void;
-  postEvent(eventType: string, callback: Callback, eventData: string): void;
-  receiveEvent(eventType: string, eventData: TODOEventData): void;
+  postEvent(
+    eventType: string,
+    callback?: Callback | false,
+    eventData?: any,
+  ): void;
+  receiveEvent: EventCallback;
   callEventCallbacks(eventType: string, func: EventCallbackConsumer): void;
 }
 
@@ -122,6 +134,8 @@ export interface MainButton {
   setText(text: string): MainButton;
   /** A method that sets the button press event handler. An alias for Telegram.WebApp.onEvent('mainButtonClicked', callback) */
   onClick(callback: EventCallback): MainButton;
+  /** A method that deletes a previously set handler */
+  offClick(callback: EventCallback): MainButton;
   /** A method to make the button visible.
       Note that opening the Web App from the attachment menu hides the main button until the user interacts with the Web App interface. */
   show(): MainButton;
@@ -142,18 +156,20 @@ export interface MainButton {
       - text_color - button text color;
       - is_active - enable the button;
       - is_visible - show the button. */
-  setParams(params: {
-    /** button text */
-    text?: string;
-    /** button color */
-    color?: string;
-    /** button text color */
-    text_color?: string;
-    /** enable the button */
-    is_active?: boolean;
-    /** show the button */
-    is_visible?: boolean;
-  }): MainButton;
+  setParams(params: MainButtonParams): MainButton;
+}
+
+export interface MainButtonParams {
+  /** button text */
+  text?: string;
+  /** button color */
+  color?: Color;
+  /** button text color */
+  text_color?: Color;
+  /** enable the button */
+  is_active?: boolean;
+  /** show the button */
+  is_visible?: boolean;
 }
 
 /** This object contains data that is transferred to the Web App when it is opened. It is empty if the Web App was launched from a keyboard button. */
@@ -198,7 +214,7 @@ try {
   locationHash = location.hash.toString();
 } catch {}
 
-const initParamsWebApp = urlParseHashParams(locationHash);
+const initParamsWebView = urlParseHashParams(locationHash);
 
 let isIframe = false;
 try {
@@ -206,7 +222,7 @@ try {
   if (isIframe) {
     window.addEventListener("message", function (event) {
       if (event.source !== window.parent) return;
-      let dataParsed: TODOEventData;
+      let dataParsed: { eventType: string; eventData: EventData };
       try {
         dataParsed = JSON.parse(event.data);
       } catch (e) {
@@ -291,12 +307,16 @@ function urlAppendHashParams(url: string, addHash: string) {
   return url + addHash;
 }
 
-function postEvent(eventType: string, callback: Callback, eventData: string) {
+function postEvent(
+  eventType: string,
+  callback: Callback,
+  eventData: EventData,
+) {
   if (!callback) {
     callback = function () {};
   }
   if (eventData === undefined) {
-    eventData = "";
+    eventData = "" as any;
   }
 
   if (window.TelegramWebviewProxy !== undefined) {
@@ -316,7 +336,7 @@ function postEvent(eventType: string, callback: Callback, eventData: string) {
         JSON.stringify({ eventType: eventType, eventData: eventData }),
         trustedTarget,
       );
-      if (initParamsWebApp.tgWebAppDebug) {
+      if (initParamsWebView.tgWebAppDebug) {
         console.log(
           "[Telegram.WebView] postEvent via postMessage",
           eventType,
@@ -328,14 +348,14 @@ function postEvent(eventType: string, callback: Callback, eventData: string) {
       callback(e);
     }
   } else {
-    if (initParamsWebApp.tgWebAppDebug) {
+    if (initParamsWebView.tgWebAppDebug) {
       console.log("[Telegram.WebView] postEvent", eventType, eventData);
     }
     callback({ notAvailable: true });
   }
 }
 
-function receiveEvent(eventType: string, eventData: string) {
+function receiveEvent(eventType: string, eventData: EventData) {
   callEventCallbacks(eventType, function (callback: EventCallback) {
     callback(eventType, eventData);
   });
@@ -352,7 +372,7 @@ function callEventCallbacks(
   ) {
     return;
   }
-  for (const i = 0; i < curEventHandlers.length; i++) {
+  for (let i = 0; i < curEventHandlers.length; i++) {
     try {
       func(curEventHandlers[i]);
     } catch {}
@@ -418,7 +438,7 @@ if (!window.Telegram) {
   window.Telegram = {} as any;
 }
 window.Telegram.WebView = {
-  initParams: initParamsWebApp,
+  initParams: initParamsWebView,
   onEvent: onEvent,
   offEvent: offEvent,
   postEvent: postEvent,
@@ -444,54 +464,61 @@ window.TelegramGameProxy = {
 // WebApp
 const Utils = window.Telegram.Utils;
 const WebView = window.Telegram.WebView;
-const initParamsWebView = WebView.initParams;
+const initParamsWebApp = WebView.initParams;
 
-const WebApp = {};
-const webAppInitData = "", webAppInitDataUnsafe = {};
-const themeParams = {}, colorScheme = "light";
+const WebApp = {} as WebApp;
+let webAppInitData = "";
+let webAppInitDataUnsafe: Params;
+const themeParams = {} as ThemeParams;
+let colorScheme = "light";
 
-if (initParams.tgWebAppData && initParams.tgWebAppData.length) {
-  webAppInitData = initParams.tgWebAppData;
+if (initParamsWebApp.tgWebAppData && initParamsWebApp.tgWebAppData.length) {
+  webAppInitData = initParamsWebApp.tgWebAppData;
   webAppInitDataUnsafe = Utils.urlParseQueryString(webAppInitData);
   for (const key in webAppInitDataUnsafe) {
     const val = webAppInitDataUnsafe[key];
     try {
       if (
-        val.substr(0, 1) == "{" && val.substr(-1) == "}" ||
-        val.substr(0, 1) == "[" && val.substr(-1) == "]"
+        val != null && (
+          val.substr(0, 1) == "{" && val.substr(-1) == "}" ||
+          val.substr(0, 1) == "[" && val.substr(-1) == "]"
+        )
       ) {
         webAppInitDataUnsafe[key] = JSON.parse(val);
       }
-    } catch (e) {}
+    } catch {}
   }
 }
-if (initParams.tgWebAppThemeParams && initParams.tgWebAppThemeParams.length) {
-  const themeParamsRaw = initParams.tgWebAppThemeParams;
+if (
+  initParamsWebView.tgWebAppThemeParams &&
+  initParamsWebView.tgWebAppThemeParams.length
+) {
+  const themeParamsRaw = initParamsWebView.tgWebAppThemeParams;
   try {
     const theme_params = JSON.parse(themeParamsRaw);
     setThemeParams(theme_params);
   } catch (e) {}
 }
 
-function onThemeChanged(eventType, eventData) {
+function onThemeChanged(_eventType: string, eventData: EventData) {
   if (eventData.theme_params) {
     setThemeParams(eventData.theme_params);
     window.Telegram.WebApp.MainButton.setParams({
       force_update: true,
-    });
+    } as any);
     receiveWebViewEvent("themeChanged");
   }
 }
 
-const lastWindowHeight = window.innerHeight;
-function onViewportChanged(eventType, eventData) {
+let lastWindowHeight = window.innerHeight;
+function onViewportChanged(eventType: string, eventData: EventData) {
   if (eventData.height) {
     window.removeEventListener("resize", onWindowResize);
     setViewportHeight(eventData);
   }
 }
 
-function onWindowResize(e) {
+function onWindowResize(_e: Event) {
   if (lastWindowHeight != window.innerHeight) {
     lastWindowHeight = window.innerHeight;
     receiveWebViewEvent("viewportChanged", {
@@ -500,34 +527,36 @@ function onWindowResize(e) {
   }
 }
 
-function receiveWebViewEvent(eventType) {
-  const args = Array.prototype.slice.call(arguments);
+function receiveWebViewEvent(eventType: string): void;
+function receiveWebViewEvent(eventType: string, args: EventData): void;
+function receiveWebViewEvent(eventType: string) {
+  const args = Array.prototype.slice.call(arguments) as any;
   eventType = args.shift();
   WebView.callEventCallbacks("webview:" + eventType, function (callback) {
     callback.apply(WebApp, args);
   });
 }
 
-function onWebViewEvent(eventType, callback) {
+function onWebViewEvent(eventType: string, callback: EventCallback) {
   WebView.onEvent("webview:" + eventType, callback);
 }
 
-function offWebViewEvent(eventType, callback) {
+function offWebViewEvent(eventType: string, callback: EventCallback) {
   WebView.offEvent("webview:" + eventType, callback);
 }
 
-function setCssProperty(name, value) {
+function setCssProperty(name: string, value: string) {
   const root = document.documentElement;
   if (root && root.style && root.style.setProperty) {
     root.style.setProperty("--tg-" + name, value);
   }
 }
 
-function setThemeParams(theme_params) {
-  const color;
-  for (const key in theme_params) {
-    if (color = parseColorToHex(theme_params[key])) {
-      themeParams[key] = color;
+function setThemeParams(theme_params: ThemeParams) {
+  let color: Color;
+  for (let key in theme_params) {
+    if (color = parseColorToHex((theme_params as any)[key])) {
+      (themeParams as any)[key] = color;
       if (key == "bg_color") {
         colorScheme = isColorDark(color) ? "dark" : "light";
         setCssProperty("color-scheme", colorScheme);
@@ -538,19 +567,21 @@ function setThemeParams(theme_params) {
   }
 }
 
-const viewportHeight = false, viewportStableHeight = false, isExpanded = true;
-function setViewportHeight(data) {
+let viewportHeight: number | false = false;
+let viewportStableHeight: number | false = false;
+let isExpanded = true;
+function setViewportHeight(data?: EventData) {
   if (typeof data !== "undefined") {
     isExpanded = !!data.is_expanded;
-    viewportHeight = data.height;
-    if (data.is_state_stable) {
-      viewportStableHeight = data.height;
+    viewportHeight = data.height as number;
+    if ((data as any).is_state_stable) {
+      viewportStableHeight = data.height as number;
     }
     receiveWebViewEvent("viewportChanged", {
-      isStateStable: !!data.is_state_stable,
+      isStateStable: !!(data as any).is_state_stable,
     });
   }
-  const height, stable_height;
+  let height, stable_height;
   if (viewportHeight !== false) {
     height = (viewportHeight - mainButtonHeight) + "px";
   } else {
@@ -569,9 +600,9 @@ function setViewportHeight(data) {
   setCssProperty("viewport-stable-height", stable_height);
 }
 
-function parseColorToHex(color) {
+function parseColorToHex(color: string) {
   color += "";
-  const match;
+  let match: RegExpExecArray | null;
   if (/^#([0-9a-f]){6}$/i.test(color)) {
     return color.toLowerCase();
   } else if (match = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(color)) {
@@ -581,7 +612,7 @@ function parseColorToHex(color) {
   return false;
 }
 
-function isColorDark(rgb) {
+function isColorDark(rgb: string) {
   rgb = rgb.replace(/[\s#]/g, "");
   if (rgb.length == 3) {
     rgb = rgb[0] + rgb[0] + rgb[1] + rgb[1] + rgb[2] + rgb[2];
@@ -593,14 +624,14 @@ function isColorDark(rgb) {
   return hsp < 120;
 }
 
-function byteLength(str) {
+function byteLength(str: string) {
   if (window.Blob) {
     try {
       return new Blob([str]).size;
     } catch (e) {}
   }
-  const s = str.length;
-  for (const i = str.length - 1; i >= 0; i--) {
+  let s = str.length;
+  for (let i = str.length - 1; i >= 0; i--) {
     const code = str.charCodeAt(i);
     if (code > 0x7f && code <= 0x7ff) s++;
     else if (code > 0x7ff && code <= 0xffff) s += 2;
@@ -609,16 +640,16 @@ function byteLength(str) {
   return s;
 }
 
-const mainButtonHeight = 0;
+let mainButtonHeight = 0;
 const MainButton = (function () {
-  const isVisible = false;
-  const isActive = true;
-  const isProgressVisible = false;
-  const buttonText = "CONTINUE";
-  const buttonColor = false;
-  const buttonTextColor = false;
+  let isVisible = false;
+  let isActive = true;
+  let isProgressVisible = false;
+  let buttonText = "CONTINUE";
+  let buttonColor: Color = false;
+  let buttonTextColor: Color = false;
 
-  const mainButton = {};
+  const mainButton = {} as MainButton;
   Object.defineProperty(mainButton, "text", {
     set: function (val) {
       mainButton.setParams({ text: val });
@@ -673,10 +704,10 @@ const MainButton = (function () {
 
   WebView.onEvent("main_button_pressed", onMainButtonPressed);
 
-  const debugBtn = null, debugBtnStyle = {};
-  if (initParams.tgWebAppDebug) {
-    debugBtn = document.createElement("tg-main-button");
-    debugBtnStyle = {
+  let debugBtn: HTMLButtonElement;
+  if (initParamsWebView.tgWebAppDebug) {
+    debugBtn = document.createElement("tg-main-button") as any;
+    const debugBtnStyle: Record<string, string> = {
       font: "600 14px/18px sans-serif",
       display: "none",
       width: "100%",
@@ -694,9 +725,9 @@ const MainButton = (function () {
       zIndex: "10000",
     };
     for (const k in debugBtnStyle) {
-      debugBtn.style[k] = debugBtnStyle[k];
+      debugBtn.style[k as any] = debugBtnStyle[k];
     }
-    document.addEventListener("DOMContentLoaded", function onDomLoaded(event) {
+    document.addEventListener("DOMContentLoaded", function onDomLoaded(_event) {
       document.removeEventListener("DOMContentLoaded", onDomLoaded);
       document.body.appendChild(debugBtn);
       debugBtn.addEventListener("click", onMainButtonPressed, false);
@@ -726,7 +757,7 @@ const MainButton = (function () {
         }
         : { is_visible: false },
     );
-    if (initParams.tgWebAppDebug) {
+    if (initParamsWebView.tgWebAppDebug) {
       debugBtn.style.display = isVisible ? "block" : "none";
       debugBtn.style.opacity = isActive ? "1" : "0.8";
       debugBtn.style.cursor = isActive ? "pointer" : "auto";
@@ -747,8 +778,8 @@ const MainButton = (function () {
     }
   }
 
-  function setParams(params) {
-    const changed = false;
+  function setParams(params: MainButtonParams) {
+    let changed = false;
     if (typeof params.text !== "undefined") {
       const text = params.text.toString().replace(/^\s+|\s+$/g, "");
       if (!text.length) {
@@ -834,7 +865,7 @@ const MainButton = (function () {
       }
       isActive = !!params.is_active;
     }
-    if (changed || params.force_update) {
+    if (changed || (params as any).force_update) {
       updateButton();
     }
     return mainButton;
@@ -880,10 +911,6 @@ const MainButton = (function () {
   mainButton.setParams = setParams;
   return mainButton;
 })();
-
-if (!window.Telegram) {
-  window.Telegram = {};
-}
 
 Object.defineProperty(WebApp, "initData", {
   get: function () {
