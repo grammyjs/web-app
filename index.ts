@@ -7,4 +7,5 @@ if (typeof window !== "object" || window === null) {
     "Error: Telegram Web App script has not run, see https://core.telegram.org/bots/webapps#initializing-web-apps",
   );
 }
+export const WebApp = window.Telegram.WebApp;
 export default window.Telegram;
