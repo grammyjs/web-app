@@ -2,16 +2,21 @@
   "name": "@grammyjs/web-app",
   "version": "0.0.1",
   "description": "Building blocks for Telegram Web Apps",
-  "main": "web-app.js",
+  "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc index.ts"
   },
-  "keywords": [],
+  "keywords": ["telegram", "web", "app", "bot", "types"],
   "author": "KnorpelSenf",
   "license": "MIT",
-  "files": ["web-app.js", "web-app.d.ts"],
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
   "devDependencies": {
     "typescript": "^4.6.3"
+  },
+  "dependencies": {
+    "@types/telegram-web-app": "^1.0.0"
   }
 }
