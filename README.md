@@ -10,9 +10,9 @@ This repo provides an npm package for building Web App for your Telegram bot. It
 simply re-exports the API provided by Telegram's JS module which you must still
 script-tag include.
 
-The advantage package bundles up TypeScript types, which may make it easier to
-set up the project. In addition, it will allow you to properly scope access to
-`window.Telegram`, rather than relying on the global scope.
+The advantage of this package is that is bundles up TypeScript types, which may
+make it easier to set up the project. In addition, it will allow you to properly
+scope access to `window.Telegram`, rather than relying on the global scope.
 
 ## Installation
 
