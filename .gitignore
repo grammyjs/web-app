@@ -1,5 +1,5 @@
 node_modules
 package-lock.json
 
-web-app.js
-web-app.d.ts
+index.js
+index.d.ts
