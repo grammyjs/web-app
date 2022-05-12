@@ -2,8 +2,6 @@
 
 ---
 
-**WARNING: unstable.** This is still a work in progress.
-
 ## Building Blocks for Telegram Web Apps
 
 This repo provides an npm package for building Web App for your Telegram bot. It
