@@ -4,7 +4,7 @@
   "description": "Building blocks for Telegram Web Apps",
   "main": "index.js",
   "scripts": {
-    "build": "tsc index.ts"
+    "build": "tsc"
   },
   "keywords": ["telegram", "web", "app", "bot", "types"],
   "author": "KnorpelSenf",
