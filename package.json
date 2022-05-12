@@ -1,12 +1,18 @@
 {
   "name": "@grammyjs/web-app",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Building blocks for Telegram Web Apps",
   "main": "index.js",
   "scripts": {
     "build": "tsc"
   },
-  "keywords": ["telegram", "web", "app", "bot", "types"],
+  "keywords": [
+    "telegram",
+    "web",
+    "app",
+    "bot",
+    "types"
+  ],
   "author": "KnorpelSenf",
   "license": "MIT",
   "files": [
