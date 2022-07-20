@@ -42,3 +42,7 @@ Once your application is ready to be displayed, you should call `ready()`.
 ```ts
 WebApp.ready();
 ```
+
+Consult
+[the offical Telegram docs for Web Apps](https://core.telegram.org/bots/webapps#initializing-web-apps)
+to see what else is available through `WebApp`.
