@@ -1,6 +1,6 @@
 {
   "name": "@grammyjs/web-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Building blocks for Telegram Web Apps",
   "main": "index.js",
   "scripts": {
