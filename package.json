@@ -23,6 +23,6 @@
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "@types/telegram-web-app": "^6.4.0"
+    "@types/telegram-web-app": "^6.9.2"
   }
 }
